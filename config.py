@@ -44,12 +44,15 @@ def get_aur_update_command():
 class Config:
     terminal: str = find_terminal()
 
+    waiting_time : int = 60 * 15
+    remind_later_time : int = 60 * 60
+
     update_aur : bool = is_yay_installed() or is_paru_installed()
     update_flatpak : bool = is_flatpak_installed()
 
     aur_helper : str = get_aur_update_command()
 
-    _path: str = field(default=os.path.expanduser("~/.config/updates-notifications/config.json"), init=False)
+    path: str = os.path.expanduser("~/.config/updates-notifications/config.json")
 
     def __post_init__(self):
         """Automatically load config data from file on init."""
@@ -58,27 +61,27 @@ class Config:
             for key, value in data.items():
                 if hasattr(self, key):
                     setattr(self, key, value)
-        else:
-            self._save()
+
+        self._save()
 
     def _load_from_file(self):
         """Try to load config from user or system file."""
-        if os.path.isfile(self._path):
+        if os.path.isfile(self.path):
             try:
-                with open(self._path, 'r') as f:
+                with open(self.path, 'r') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Warning: Failed to load config from {self._path}: {e}")
+                print(f"Warning: Failed to load config from {self.path}: {e}")
         return {}
 
     def _save(self):
         """Save current config to the user config path."""
-        os.makedirs(os.path.dirname(self._path), exist_ok=True)
-        with open(self._path, 'w') as f:
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with open(self.path, 'w') as f:
             json.dump(asdict(self), f, indent=4)
-        print(f"Config saved to {self._path}")
+        print(f"Config saved to {self.path}")
 
     def show(self):
-        print(f"Config loaded from: {self._path}")
+        print(f"Config loaded from: {self.path}")
         print(json.dumps(asdict(self), indent=4))
 

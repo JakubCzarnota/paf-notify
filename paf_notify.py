@@ -53,17 +53,15 @@ def create_update_command():
 def on_update(notification, action, data=None):
     update_command = create_update_command()
 
-    print(config.terminal)
     print(update_command)
 
     subprocess.Popen([config.terminal, "-e", "bash", "-c", update_command]).wait()
 
-
     print("Updated")
 
-    loop.quit()
+    time.sleep(config.waiting_time)
 
-    time.sleep(check_again_time)
+    loop.quit()
 
 def create_updates_list_command():
     command = []
@@ -91,11 +89,12 @@ def on_updates_list(notification, action, data=None):
     loop.quit()
 
 def on_remind_later(notification, action, data=None):
-        loop.quit()
 
         print("Remind later")
 
-        time.sleep(remind_later_time)
+        time.sleep(config.remind_later_time)
+
+        loop.quit()
 
 def create_notification():
         update_message = []
@@ -116,7 +115,7 @@ def create_notification():
 
         n.connect("closed", on_closed)
 
-        n.set_timeout(2147483647)
+        n.set_timeout(2147483647) # max time
 
         n.add_action("update",  # action name
                      "Update now",  # button label
@@ -150,7 +149,7 @@ def main():
             loop.run()
         else:
             print("no updates")
-            time.sleep(check_again_time)
+            time.sleep(config.waiting_time)
 
 if __name__ == "__main__":
     main()

@@ -28,20 +28,22 @@ def on_closed(notification, data=None):
 def create_update_command():
     command = []
 
-    command.append('read -p "Update with pacman? [Y/n] " p; p=${p:-y}')
+    if updates.get_pacman_updates_amount() > 0:
+        command.append('read -p "Update with pacman? [Y/n] " p; p=${p:-y}')
 
-    if config.update_aur:
-        command.append(f'read -p "Update with {config.aur_helper} (AUR)? [Y/n] "y; ' + 'y=${y:-y}')
+    if config.update_aur and updates.get_aur_updates_amount() > 0:
+        command.append(f'read -p "Update with {config.aur_helper} (AUR)? [Y/n] "; ' + 'y=${y:-y}')
 
-    if config.update_flatpak:
+    if config.update_flatpak and updates.get_flatpak_updates_amount() > 0:
         command.append('read -p "Update with flatpak? [Y/n] " f; f=${f:-y}')
 
-    command.append('[[ $p =~ ^[Yy]$ ]] && echo "updating with pacman" && sudo pacman -Syu --noconfirm')
+    if updates.get_pacman_updates_amount() > 0:
+        command.append('[[ $p =~ ^[Yy]$ ]] && echo "updating with pacman" && sudo pacman -Syu --noconfirm')
 
-    if config.update_aur:
-        command.append(f'[[ $y =~ ^[Yy]$ ]] && echo "updating with {config.aur_helper}" && f{config.aur_helper} -Sua --noconfirm')
+    if config.update_aur and updates.get_aur_updates_amount() > 0:
+        command.append(f'[[ $y =~ ^[Yy]$ ]] && echo "updating with {config.aur_helper}" && {config.aur_helper} -Sua --noconfirm')
 
-    if config.update_flatpak:
+    if config.update_flatpak and updates.get_flatpak_updates_amount() > 0:
         command.append('[[ $f =~ ^[Yy]$ ]] && echo "updating with flatpak" && flatpak update --assumeyes')
 
     command.append('read -p "Press Enter to continue..."')

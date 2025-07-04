@@ -3,6 +3,7 @@ import time
 import gi
 
 from config import Config
+from updates import Updates
 
 gi.require_version("Notify", "0.7")
 from gi.repository import Notify, GObject, GLib
@@ -13,8 +14,9 @@ remind_later_time = 60 * 60 # 1 hour
 loop = GLib.MainLoop()
 
 config = Config()
-
 config.show()
+
+updates = Updates(config)
 
 def on_closed(notification, data=None):
     print("Closed")
@@ -29,7 +31,7 @@ def create_update_command():
     command.append('read -p "Update with pacman? [Y/n] " p; p=${p:-y}')
 
     if config.update_aur:
-        command.append('read -p "Update with yay (AUR)? [Y/n] " y; y=${y:-y}')
+        command.append(f'read -p "Update with {config.aur_helper} (AUR)? [Y/n] "y; ' + 'y=${y:-y}')
 
     if config.update_flatpak:
         command.append('read -p "Update with flatpak? [Y/n] " f; f=${f:-y}')
@@ -37,7 +39,7 @@ def create_update_command():
     command.append('[[ $p =~ ^[Yy]$ ]] && echo "updating with pacman" && sudo pacman -Syu --noconfirm')
 
     if config.update_aur:
-        command.append('[[ $y =~ ^[Yy]$ ]] && echo "updating with yay" && yay -Sua --noconfirm')
+        command.append(f'[[ $y =~ ^[Yy]$ ]] && echo "updating with {config.aur_helper}" && f{config.aur_helper} -Sua --noconfirm')
 
     if config.update_flatpak:
         command.append('[[ $f =~ ^[Yy]$ ]] && echo "updating with flatpak" && flatpak update --assumeyes')
@@ -45,7 +47,6 @@ def create_update_command():
     command.append('read -p "Press Enter to continue..."')
 
     return " ; ".join(command)
-
 
 def on_update(notification, action, data=None):
     update_command = create_update_command()
@@ -62,80 +63,87 @@ def on_update(notification, action, data=None):
 
     time.sleep(check_again_time)
 
+def create_updates_list_command():
+    command = []
+
+    if updates.get_pacman_updates_amount():
+        command.append(f'echo "pacman updates: \n{updates.pacman_updates}"')
+
+    if config.update_aur and updates.get_aur_updates_amount() > 0:
+        command.append(f'echo "{config.aur_helper} (AUR) updates: \n{updates.aur_updates}"')
+
+    if config.update_flatpak and updates.get_flatpak_updates_amount() > 0:
+        command.append(f'echo "flatpak updates: \n{updates.flatpak_updates}"')
+
+    command.append('read -p "Press Enter to continue..."')
+
+    return " ; ".join(command)
+
 def on_updates_list(notification, action, data=None):
-    subprocess.Popen([config.terminal, "-e", "bash", "-c", 'echo "Pacman updates:" ; checkupdates ; echo "AUR updates:" ; yay -Qua ; echo "Flatpak updates:" ; flatpak remote-ls --updates ; read -p "Press Enter to continue..."']).wait()
+    updates_list_command = create_updates_list_command()
+
+    subprocess.Popen([config.terminal, "-e", "bash", "-c", updates_list_command]).wait()
 
     print("Updates listed")
 
     loop.quit()
 
-    #time.sleep(60 * 5)
-
 def on_remind_later(notification, action, data=None):
-    loop.quit()
+        loop.quit()
 
-    print("Remind later")
+        print("Remind later")
 
-    time.sleep(remind_later_time)
+        time.sleep(remind_later_time)
 
-def create_notification(pacman_updates, aur_updates, flatpak_updates):
-    all_updates_amount =  pacman_updates + aur_updates + flatpak_updates
+def create_notification():
+        update_message = []
 
-    n = Notify.Notification.new(f"Updates available: {all_updates_amount}", f"pacman ({pacman_updates}), AUR ({aur_updates}), flatpak ({flatpak_updates})", "system-software-update" )
+        if updates.get_pacman_updates_amount() > 0:
+            update_message.append(f'pacman ({updates.get_pacman_updates_amount()})')
 
-    n.connect("closed", on_closed)
+        if updates.get_aur_updates_amount() > 0:
+            update_message.append(f'AUR ({updates.get_aur_updates_amount()})')
 
-    n.set_timeout(2147483647)
+        if updates.get_flatpak_updates_amount() > 0:
+            update_message.append(f'flatpak ({updates.get_flatpak_updates_amount()})')
 
-    n.add_action("update",  # action name
-                 "Update now",  # button label
-                 on_update,  # callback
-                 None)  # user data
+        update_message = ', '.join(update_message)
 
-    n.add_action("updates list",  # action name
-                 "Updates list",  # button label
-                 on_updates_list,  # callback
-                 None)  # user data
+        n = Notify.Notification.new(f"Updates available: {updates.get_updates_amount()}", update_message,
+                                    "system-software-update")
 
-    n.add_action("remind later",  # action name
-                 "Remind later",  # button label
-                 on_remind_later,  # callback
-                 None)  # user data
+        n.connect("closed", on_closed)
 
-    return n
+        n.set_timeout(2147483647)
 
-def get_pacman_updates():
-    try:
-        output = subprocess.check_output(["checkupdates"], text=True)
-        return output.count('\n')
-    except subprocess.CalledProcessError:
-        return 0
+        n.add_action("update",  # action name
+                     "Update now",  # button label
+                     on_update,  # callback
+                     None)  # user data
 
-def get_aur_updates():
-    try:
-        output = subprocess.check_output(["yay", "-Qua"], text=True)
-        return output.count('\n')
-    except subprocess.CalledProcessError:
-        return 0
+        n.add_action("updates list",  # action name
+                     "Updates list",  # button label
+                     on_updates_list,  # callback
+                     None)  # user data
 
-def get_flatpak_updates():
-        try:
-            output = subprocess.check_output(["flatpak", "remote-ls", "--updates"], text=True)
-            return output.count('\n')
-        except subprocess.CalledProcessError:
-            return 0
+        n.add_action("remind later",  # action name
+                     "Remind later",  # button label
+                     on_remind_later,  # callback
+                     None)  # user data
+
+        return n
 
 def main():
     Notify.init("Update checker")
+
     while True:
 
-        print("Checking updates")
-        pacman_updates = get_pacman_updates()
-        aur_updates = get_aur_updates()
-        flatpak_updates = get_flatpak_updates()
+        print("Checking for updates")
 
-        if (pacman_updates + aur_updates + flatpak_updates) > 0:
-            n = create_notification(pacman_updates, aur_updates, flatpak_updates)
+        updates.check_for_updates()
+
+        if updates.get_updates_amount() > 0:
+            n = create_notification()
             n.show()
             loop.run()
         else:

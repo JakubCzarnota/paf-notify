@@ -6,7 +6,7 @@ import shutil
 from dataclasses import dataclass, asdict, field
 
 
-def _find_terminal():
+def find_terminal():
     terminals = [
         'xdg-terminal', 'x-terminal-emulator', 'kitty',
         'gnome-terminal', 'konsole', 'xfce4-terminal',
@@ -31,23 +31,23 @@ def is_flatpak_installed() -> bool:
     return shutil.which("flatpak") is not None
 
 
-def _get_aur_update_command():
+def get_aur_update_command():
     if is_yay_installed():
-        return "yay -Sua --noconfirm"
+        return "yay"
     elif is_paru_installed():
-        return "paru -Sua --noconfirm"
+        return "paru"
 
     return None
 
 
 @dataclass
 class Config:
-    terminal: str = _find_terminal()
+    terminal: str = find_terminal()
 
     update_aur : bool = is_yay_installed() or is_paru_installed()
     update_flatpak : bool = is_flatpak_installed()
 
-    update_aur_command : str = _get_aur_update_command()
+    aur_helper : str = get_aur_update_command()
 
     _path: str = field(default=os.path.expanduser("~/.config/updates-notifications/config.json"), init=False)
 
